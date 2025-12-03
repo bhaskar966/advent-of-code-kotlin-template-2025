@@ -64,9 +64,9 @@ fun main() {
 
 
 //    part1(readInputAndParsePair("Day02")).println()
-//    part1(readInputAndParsePair("day2test")).println()
+//    part1(readInputAndParsePair("Day02_test")).println()
 
-    part2(readInputAndParsePair("Day02")).println()
-//    part2(readInputAndParsePair("day2test")).println()
+//    part2(readInputAndParsePair("Day02")).println()
+    part2(readInputAndParsePair("Day02_test")).println()
 
 }
