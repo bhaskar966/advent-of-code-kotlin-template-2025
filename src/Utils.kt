@@ -132,3 +132,30 @@ fun removeAcceptedRolls(grid: List<String>, accessibleIndexes: Map<Int, List<Int
     }
     return mutableGrid
 }
+
+// Day 5
+fun countUniqueIds(ranges: List<LongRange>): Long {
+
+    val sorted = ranges.sortedBy { it.first }
+
+    var totalCount = 0L
+    var currentStart = sorted[0].first
+    var currentEnd = sorted[0].last
+
+    for(i in 1 until sorted.size) {
+        val range = sorted[i]
+
+        if(range.first <= currentEnd + 1) {
+            currentEnd = maxOf(currentEnd, range.last)
+        } else {
+            totalCount += (currentEnd - currentStart + 1)
+            currentStart = range.first
+            currentEnd = range.last
+        }
+    }
+
+    totalCount += (currentEnd - currentStart + 1)
+
+    return totalCount
+
+}
