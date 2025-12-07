@@ -159,3 +159,39 @@ fun countUniqueIds(ranges: List<LongRange>): Long {
     return totalCount
 
 }
+
+fun List<String>.listifyWorkSheet(): List<List<Char>> {
+
+    return this.map { line ->
+        line.toList().filterNot { it == ' ' }
+    }
+
+}
+
+fun getOperandAndOperator(list: List<List<Char>>): List<Pair<List<Int>, Char>> {
+    val operands = mutableListOf<MutableList<Int>>()
+
+    for(line in 0..list.size-2){
+        operands.add(mutableListOf())
+        list[line].forEach { c ->
+            if(c.isDigit()) operands[line].add(c.digitToInt())
+        }
+    }
+
+    val operators = mutableListOf<Char>()
+    list.last().forEach {  c ->
+        operators.add(c)
+    }
+
+    return operators.mapIndexed { i, op ->
+        operands[i] to op
+    }
+}
+
+public inline fun <T> Iterable<T>.multiplicationOf(selector: (T) -> Int): Long {
+    var multiple: Long = 1L
+    for (element in this) {
+        multiple *= selector(element)
+    }
+    return multiple
+}
