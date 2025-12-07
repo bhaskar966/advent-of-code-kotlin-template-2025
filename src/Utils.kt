@@ -159,3 +159,21 @@ fun countUniqueIds(ranges: List<LongRange>): Long {
     return totalCount
 
 }
+
+// Day 7
+data class Beam(val row: Int, val col: Int)
+
+fun findStart(input: List<String>): Pair<Int, Int> {
+    for(r in input.indices) {
+        for (c in input[r].indices) {
+            if(input[r][c] == 'S') {
+                return r to c
+            }
+        }
+    }
+    return 0 to 0
+}
+
+fun isInBounds(row: Int, col: Int, rows: Int, cols: Int): Boolean {
+    return row in 0 until rows && col in 0 until cols
+}
