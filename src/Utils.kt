@@ -159,11 +159,3 @@ fun countUniqueIds(ranges: List<LongRange>): Long {
     return totalCount
 
 }
-
-fun List<String>.listifyWorkSheet(): List<List<Char>> {
-
-    return this.map { line ->
-        line.toList().filterNot { it == ' ' }
-    }
-
-}
