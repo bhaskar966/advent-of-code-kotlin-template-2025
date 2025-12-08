@@ -177,3 +177,75 @@ fun findStart(input: List<String>): Pair<Int, Int> {
 fun isInBounds(row: Int, col: Int, rows: Int, cols: Int): Boolean {
     return row in 0 until rows && col in 0 until cols
 }
+
+// Day 8
+data class Point3d(val x: Long, val y: Long, val z: Long)
+
+data class Edge(val u: Int, val v: Int, val dist2: Long)
+
+fun parsePoints(lines: List<String>): List<Point3d> = lines
+    .filter { it.isNotBlank() }
+    .map { line ->
+        val (x,y,z) = line.split(',').map { it.trim().toLong() }
+        Point3d(x,y,z)
+    }
+
+fun squaredDistance(a: Point3d, b: Point3d): Long {
+    val dx = a.x - b.x
+    val dy = a.y - b.y
+    val dz = a.z - b.z
+    return dx * dx + dy * dy + dz * dz
+}
+
+class DisjointSet(n: Int) {
+    private val parent = IntArray(n) { it }
+    private val size = IntArray(n) { 1 }
+
+    fun find(x: Int): Int {
+        if(parent[x] != x) parent[x] = find(parent[x])
+        return parent[x]
+    }
+
+    fun union(x: Int, y: Int) {
+        var rx = find(x)
+        var ry = find(y)
+        if(rx == ry) return
+
+        if (size[rx] < size[ry]) {
+            val tmp = rx
+            rx = ry
+            ry = tmp
+        }
+        parent[ry] = rx
+        size[rx] += size[ry]
+    }
+
+    fun componentSize(): List<Int> {
+        val rootCounts = mutableMapOf<Int, Int>()
+        for(i in parent.indices) {
+            val r = find(i)
+            rootCounts[r] = (rootCounts[r] ?: 0) + 1
+        }
+        return rootCounts.values.toList()
+    }
+
+    fun countComponents(): Int {
+        return parent.indices.count { find(it) == it }
+    }
+}
+
+fun buildAllEdges(points: List<Point3d>): List<Edge> {
+
+    val n = points.size
+    val edges = ArrayList<Edge>(n * (n - 1) / 2)
+
+    for(i in 0 until n) {
+        for (j in i+1 until n) {
+            val d2 = squaredDistance(points[i],points[j])
+            edges.add(Edge(i, j, d2))
+        }
+    }
+
+    return edges.sortedBy { it.dist2 }
+
+}
