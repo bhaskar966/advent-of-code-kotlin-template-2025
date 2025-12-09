@@ -3,6 +3,7 @@ import java.security.MessageDigest
 import kotlin.collections.forEachIndexed
 import kotlin.io.path.Path
 import kotlin.io.path.readText
+import kotlin.math.abs
 
 /**
  * Reads lines from the given input txt file.
@@ -248,4 +249,152 @@ fun buildAllEdges(points: List<Point3d>): List<Edge> {
 
     return edges.sortedBy { it.dist2 }
 
+}
+
+// Day 9
+data class Point2D(val col: Int, val row: Int)
+
+fun List<Point2D>.getLargestArea(
+    isValid: (Point2D, Point2D) -> Boolean = { _, _ -> true }
+): Long {
+    var largestArea = 0L
+    val n = this.size
+
+    for (i in 0 until n) {
+        for (j in i + 1 until n) {
+            if(isValid(this[i], this[j])){
+                val width = abs(this[i].col - this[j].col) + 1
+                val height = abs(this[i].row - this[j].row) + 1
+
+                largestArea = maxOf(largestArea, width.toLong() * height.toLong())
+            }
+        }
+    }
+
+    return largestArea
+}
+
+val pointInPolygonCache = mutableMapOf<Point2D, Boolean>()
+
+fun isPointValidCached(point: Point2D, polygon: List<Point2D>): Boolean {
+    return pointInPolygonCache.getOrPut(point) {
+        point in polygon || isPointInPolygon(point, polygon) || isOnPolygonEdge(point, polygon)
+    }
+}
+
+fun isOnPolygonEdge(point: Point2D, polygon: List<Point2D>): Boolean {
+    val n = polygon.size
+    for (i in 0 until n) {
+        val p1 = polygon[i]
+        val p2 = polygon[(i + 1) % n]
+
+        // Check if point is on the line segment between p1 and p2
+        if (isPointOnSegment(point, p1, p2)) return true
+    }
+    return false
+}
+
+fun isPointOnSegment(point: Point2D, p1: Point2D, p2: Point2D): Boolean {
+    val minCol = minOf(p1.col, p2.col)
+    val maxCol = maxOf(p1.col, p2.col)
+    val minRow = minOf(p1.row, p2.row)
+    val maxRow = maxOf(p1.row, p2.row)
+
+    if (point.col !in minCol..maxCol || point.row !in minRow..maxRow) return false
+
+    val cross = (point.row - p1.row) * (p2.col - p1.col) - (point.col - p1.col) * (p2.row - p1.row)
+    return cross == 0
+}
+
+
+fun isPointInPolygon(point: Point2D, polygon: List<Point2D>): Boolean {
+    var inside = false
+    val n = polygon.size
+
+    var j = n - 1
+    for (i in 0 until n) {
+        val xi = polygon[i].col
+        val yi = polygon[i].row
+        val xj = polygon[j].col
+        val yj = polygon[j].row
+
+        val intersect = ((yi > point.row) != (yj > point.row)) &&
+                (point.col < (xj - xi) * (point.row - yi) / (yj - yi) + xi)
+
+        if (intersect) inside = !inside
+        j = i
+    }
+
+    return inside
+}
+
+fun getLargestAreaInPolygon(points: List<Point2D>): Long {
+    if (points.isEmpty()) return 0L
+
+    // 1. Coordinate Compression
+    val uniqueCols = points.map { it.col }.distinct().sorted()
+    val uniqueRows = points.map { it.row }.distinct().sorted()
+    val colMap = uniqueCols.withIndex().associate { (i, v) -> v to i }
+    val rowMap = uniqueRows.withIndex().associate { (i, v) -> v to i }
+
+    val compressedGridCols = uniqueCols.size
+    val compressedGridRows = uniqueRows.size
+
+    val validityGrid = Array(compressedGridRows) { IntArray(compressedGridCols) }
+    pointInPolygonCache.clear()
+
+    for (r in 0 until compressedGridRows) {
+        for (c in 0 until compressedGridCols) {
+
+            val sampleCol = if (c + 1 < uniqueCols.size) (uniqueCols[c] + uniqueCols[c + 1]) / 2 else uniqueCols[c]
+            val sampleRow = if (r + 1 < uniqueRows.size) (uniqueRows[r] + uniqueRows[r + 1]) / 2 else uniqueRows[r]
+
+            val currentPoint = Point2D(sampleCol, sampleRow)
+
+            if (!isPointValidCached(currentPoint, points)) {
+                validityGrid[r][c] = 1
+            }
+        }
+    }
+
+    val summedAreaTable = Array(compressedGridRows + 1) { LongArray(compressedGridCols + 1) }
+    for (r in 0 until compressedGridRows) {
+        for (c in 0 until compressedGridCols) {
+            summedAreaTable[r + 1][c + 1] = validityGrid[r][c].toLong() +
+                    summedAreaTable[r][c + 1] +
+                    summedAreaTable[r + 1][c] -
+                    summedAreaTable[r][c]
+        }
+    }
+
+    fun isRectSumValid(compR1: Int, compC1: Int, compR2: Int, compC2: Int): Boolean {
+        val sum = summedAreaTable[compR2][compC2] -
+                summedAreaTable[compR1][compC2] -
+                summedAreaTable[compR2][compC1] +
+                summedAreaTable[compR1][compC1]
+        return sum == 0L
+    }
+
+    var largestArea = 0L
+    for (i in points.indices) {
+        for (j in i + 1 until points.size) {
+            val p1 = points[i]
+            val p2 = points[j]
+
+            // Translate world coordinates to compressed grid coordinates
+            val compR1 = rowMap.getValue(minOf(p1.row, p2.row))
+            val compC1 = colMap.getValue(minOf(p1.col, p2.col))
+            val compR2 = rowMap.getValue(maxOf(p1.row, p2.row))
+            val compC2 = colMap.getValue(maxOf(p1.col, p2.col))
+
+            // Use the summed-area table on the compressed grid
+            if (isRectSumValid(compR1, compC1, compR2, compC2)) {
+                val width = abs((p2.col - p1.col).toLong()) + 1
+                val height = abs((p2.row - p1.row).toLong()) + 1
+                largestArea = maxOf(largestArea, width * height)
+            }
+        }
+    }
+
+    return largestArea
 }
