@@ -1,9 +1,11 @@
 import java.math.BigInteger
 import java.security.MessageDigest
+import java.util.PriorityQueue
 import kotlin.collections.forEachIndexed
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Reads lines from the given input txt file.
@@ -397,4 +399,188 @@ fun getLargestAreaInPolygon(points: List<Point2D>): Long {
     }
 
     return largestArea
+}
+
+data class Machine(
+    val targets: List<Int>,
+    val buttons: List<Set<Int>>
+)
+
+fun parseMachine(line: String, parsePart2: Boolean = false): Machine {
+
+    val buttonMatches = Regex("""\(([0-9,]+)\)""").findAll(line)
+    val buttons = buttonMatches.map { match ->
+        match.groupValues[1].split(',').map { it.toInt() }.toSet()
+    }.toList()
+
+    val targets = if (parsePart2) {
+        val joltageMatch = Regex("""\{([0-9,]+)}""").find(line)!!
+        joltageMatch.groupValues[1].split(',').map { it.toInt() }
+    } else {
+        val diagramMatch = Regex("""\[([.#]+)]""").find(line)!!
+        diagramMatch.groupValues[1].map { if (it == '#') 1 else 0 }
+    }
+
+
+    return Machine(targets, buttons)
+}
+
+private fun solveMachinePart1(machine: Machine): Long {
+    val n = machine.targets.size
+    val target = machine.targets.toIntArray()
+
+    data class State(val values: IntArray, val passes: Int) : Comparable<State> {
+        override fun compareTo(other: State) = this.passes - other.passes
+        fun toKey(): String = values.contentToString()
+    }
+
+    val pq = PriorityQueue<State>()
+    val visited = mutableMapOf<String, Int>()
+
+    val initial = IntArray(n) { 0 }
+    pq.add(State(initial, 0))
+    visited[initial.contentToString()] = 0
+
+    while (pq.isNotEmpty()) {
+        val current = pq.poll()
+        val key = current.toKey()
+
+        if (visited.getOrDefault(key, Int.MAX_VALUE) < current.passes) continue
+
+        if (current.values.contentEquals(target)) {
+            return current.passes.toLong()
+        }
+
+        for (button in machine.buttons) {
+            val newValues = current.values.copyOf()
+            for (idx in button) {
+                newValues[idx] = 1 - newValues[idx]
+            }
+
+            val newKey = newValues.contentToString()
+            val newPasses = current.passes + 1
+            if (visited.getOrDefault(newKey, Int.MAX_VALUE) > newPasses) {
+                visited[newKey] = newPasses
+                pq.add(State(newValues, newPasses))
+            }
+        }
+    }
+    return -1L
+}
+
+private fun solveMachinePart2(machine: Machine, searchRange: Int): Long {
+    val numButtons = machine.buttons.size
+    val numLights = machine.targets.size
+
+    if (numButtons == 0) {
+        return if (machine.targets.all { it == 0 }) 0 else -1
+    }
+
+
+    val matrix = Array(numLights) { r ->
+        DoubleArray(numButtons + 1) { c ->
+            if (c < numButtons) {
+                if (machine.buttons[c].contains(r)) 1.0 else 0.0
+            } else {
+                machine.targets[r].toDouble()
+            }
+        }
+    }
+
+    // Gaussian elimination
+    var pivotRow = 0
+    val pivotCols = IntArray(numLights) { -1 }
+    for (col in 0 until numButtons) {
+        if (pivotRow >= numLights) break
+
+        var maxRow = pivotRow
+        for (i in pivotRow + 1 until numLights) {
+            if (abs(matrix[i][col]) > abs(matrix[maxRow][col])) {
+                maxRow = i
+            }
+        }
+
+        if (abs(matrix[maxRow][col]) > 1e-9) {
+            val temp = matrix[pivotRow]
+            matrix[pivotRow] = matrix[maxRow]
+            matrix[maxRow] = temp
+
+            val pivotValue = matrix[pivotRow][col]
+            for (k in col..numButtons) {
+                matrix[pivotRow][k] /= pivotValue
+            }
+
+            for (i in 0 until numLights) {
+                if (i != pivotRow) {
+                    val factor = matrix[i][col]
+                    for (k in col..numButtons) {
+                        matrix[i][k] -= factor * matrix[pivotRow][k]
+                    }
+                }
+            }
+            pivotCols[pivotRow] = col
+            pivotRow++
+        }
+    }
+
+    for (i in pivotRow until numLights) {
+        if (abs(matrix[i][numButtons]) > 1e-9) {
+            return -1
+        }
+    }
+
+    val solution = DoubleArray(numButtons)
+    for (i in 0 until pivotRow) {
+        solution[pivotCols[i]] = matrix[i][numButtons]
+    }
+
+    val freeCols = (0 until numButtons).filter { it !in pivotCols.slice(0 until pivotRow) }
+    val nullSpaceBasis = freeCols.map { freeCol ->
+        val vector = DoubleArray(numButtons)
+        vector[freeCol] = 1.0
+        for (i in 0 until pivotRow) {
+            vector[pivotCols[i]] = -matrix[i][freeCol]
+        }
+        vector
+    }
+
+    var minPresses = -1L
+
+    fun search(k: IntArray, depth: Int) {
+        if (depth == nullSpaceBasis.size) {
+            val currentSolution = solution.copyOf()
+            var kSum = 0.0
+            for (i in nullSpaceBasis.indices) {
+                kSum += k[i] * nullSpaceBasis[i].sum()
+                for (j in currentSolution.indices) {
+                    currentSolution[j] += k[i] * nullSpaceBasis[i][j]
+                }
+            }
+
+            if (currentSolution.all { abs(it - it.roundToLong()) < 1e-9 && it >= -1e-9 }) {
+                val totalPresses = currentSolution.sumOf { it.roundToLong() }
+                if (minPresses == -1L || totalPresses < minPresses) {
+                    minPresses = totalPresses
+                }
+            }
+            return
+        }
+
+        for (c in -searchRange..searchRange) {
+            k[depth] = c
+            search(k, depth + 1)
+        }
+    }
+
+    search(IntArray(nullSpaceBasis.size), 0)
+
+    return minPresses
+}
+
+fun solveMachine(machine: Machine, isBoolean: Boolean, searchRange: Int = 0): Long {
+    return if (!isBoolean) {
+        solveMachinePart2(machine, searchRange)
+    } else {
+        solveMachinePart1(machine)
+    }
 }
