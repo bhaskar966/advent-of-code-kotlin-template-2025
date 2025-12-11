@@ -333,7 +333,6 @@ fun isPointInPolygon(point: Point2D, polygon: List<Point2D>): Boolean {
 fun getLargestAreaInPolygon(points: List<Point2D>): Long {
     if (points.isEmpty()) return 0L
 
-    // 1. Coordinate Compression
     val uniqueCols = points.map { it.col }.distinct().sorted()
     val uniqueRows = points.map { it.row }.distinct().sorted()
     val colMap = uniqueCols.withIndex().associate { (i, v) -> v to i }
@@ -401,6 +400,7 @@ fun getLargestAreaInPolygon(points: List<Point2D>): Long {
     return largestArea
 }
 
+// Day 10
 data class Machine(
     val targets: List<Int>,
     val buttons: List<Set<Int>>
@@ -583,4 +583,54 @@ fun solveMachine(machine: Machine, isBoolean: Boolean, searchRange: Int = 0): Lo
     } else {
         solveMachinePart1(machine)
     }
+}
+
+// Day 11
+fun parseGraph(input: List<String>): Map<String, List<String>> {
+    val graph = mutableMapOf<String, List<String>>()
+
+    for (line in input) {
+        val parts = line.split(": ")
+        val device = parts[0]
+        val outputs = parts[1].split(" ")
+        graph[device] = outputs
+    }
+
+    return graph
+}
+
+data class PathState(val node: String, val visitedRequired: Set<String>)
+
+fun countPaths(
+    graph: Map<String, List<String>>,
+    current: String,
+    target: String,
+    memo: MutableMap<PathState, Long>,
+    visitedRequired: Set<String> = emptySet(),
+    requiredNodes: Set<String> = emptySet()
+): Long {
+
+    if(current == target) {
+        return if (visitedRequired.containsAll(requiredNodes)) 1L else 0L
+    }
+
+    val state = PathState(current, visitedRequired)
+    if (state in memo) return memo[state]!!
+
+    val newVisited = if (current in requiredNodes) {
+        visitedRequired + current
+    } else {
+        visitedRequired
+    }
+
+    val neighbors = graph[current] ?: emptyList()
+
+    var totalPaths = 0L
+    for (neighbor in neighbors) {
+        totalPaths += countPaths(graph, neighbor, target, memo, newVisited, requiredNodes)
+    }
+
+    memo[state] = totalPaths
+    return totalPaths
+
 }
